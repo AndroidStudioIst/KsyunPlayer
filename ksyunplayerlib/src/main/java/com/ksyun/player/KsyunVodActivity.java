@@ -241,6 +241,7 @@ public class KsyunVodActivity extends Activity {
             }
         });
 
+        /*播放器手势控制*/
         mVideoView.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent motionEvent) {
@@ -285,17 +286,17 @@ public class KsyunVodActivity extends Activity {
 
                     case MotionEvent.ACTION_MOVE:
                         if (!locked) {
-                            f = Math.abs(x - clickX);
-                            float abs = Math.abs(y - clickY);
+                            f = Math.abs(x - clickX);/*x方向滑动的绝对距离*/
+                            float abs = Math.abs(y - clickY);/*取滑动y方向的绝对距离*/
                             if (action == 1) {
                                 if (f > 50.0f && abs < 50.0f) {
-                                    action = 2;
+                                    action = 2;/*快进*/
                                 }
                                 if (f < 50.0f && abs > 50.0f && ((double) clickX) < ((double) width) * 0.25d) {
-                                    action = 3;
+                                    action = 3;/*亮度*/
                                 }
                                 if (f < 50.0f && abs > 50.0f && ((double) clickX) > ((double) width) * 0.75d) {
-                                    action = 4;
+                                    action = 4;/*音量*/
                                 }
                             }
                             switch (action) {
@@ -412,9 +413,26 @@ public class KsyunVodActivity extends Activity {
             }
         });
 
+        v_lock.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!locked) {
+                    locked = true;
+                    hideCtrlBar();
+                    v_lock.setImageResource(R.drawable.v_player_locked);
+                } else {
+                    v_lock.setImageResource(R.drawable.v_player_unlocked);
+                    locked = false;
+                    showCtrlBar();
+                }
+            }
+        });
         mainUIHandler = new MyHandler(this);
     }
 
+    /**
+     * 手势控制单击空白操作
+     **/
     private void onClickEmptyArea() {
         if (locked) {
             if (v_lock.getVisibility() != VISIBLE) {
@@ -426,7 +444,7 @@ public class KsyunVodActivity extends Activity {
                 v_lock.startAnimation(animation3);
                 v_lock.setVisibility(GONE);
             }
-        }else{
+        } else {
             if (header_bar.getVisibility() == GONE) {
                 showCtrlBar();
             } else {
@@ -436,6 +454,9 @@ public class KsyunVodActivity extends Activity {
         }
     }
 
+    /**
+     * 隐藏显示控制栏
+     **/
     private void showCtrlBar() {
         header_bar.setVisibility(VISIBLE);
         Animation animation = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_top_in);
@@ -468,24 +489,14 @@ public class KsyunVodActivity extends Activity {
         v_rotate.setVisibility(GONE);
     }
 
-    public void setBrightness(int paramInt) {
-        if (paramInt < 0) {
-            paramInt = 0;
-        }
-        if (paramInt > 100) {
-            paramInt = 100;
-        }
-        WindowManager.LayoutParams localLayoutParams = this.getWindow().getAttributes();
-        localLayoutParams.screenBrightness = (1.0F * paramInt / 100.0F);
-        this.getWindow().setAttributes(localLayoutParams);
-        this.distanceBritness = paramInt;
-    }
 
+    /**
+     * 避免拖动粒度过细，拖动时频繁定位影响体验
+     **/
     private void userSeekPlayProgress(int seekPostionMs, int max) {
         int currentPlayPos = (int) mVideoView.getCurrentPosition();
         boolean isChangeOverSeekGate = isOverSeekGate(seekPostionMs * 1000, currentPlayPos);
         if (!isChangeOverSeekGate) {
-            /* 避免拖动粒度过细，拖动时频繁定位影响体验 */
             return;
         }
         mIsTouchingSeekbar = true;
@@ -496,6 +507,9 @@ public class KsyunVodActivity extends Activity {
         mVideoView.seekTo(seekPostionMs * 1000);
     }
 
+    /**
+     * 判断拖动粒度是否符合要求
+     **/
     private boolean isOverSeekGate(int seekBarPositionMs, int currentPlayPosMs) {
         final int SEEK_MIN_GATE_MS = 1000;
         boolean isChangeOverSeekGate = Math.abs(currentPlayPosMs - seekBarPositionMs) > SEEK_MIN_GATE_MS;
@@ -503,6 +517,9 @@ public class KsyunVodActivity extends Activity {
     }
 
 
+    /**
+     * 格式化时间为 hh:ss:mm
+     **/
     private static String formatTimeText(int i) {
         int i2 = (i % 3600) / 60;
         int i3 = i % 60;
@@ -512,6 +529,10 @@ public class KsyunVodActivity extends Activity {
         return (String.format("%02d:%02d", new Object[]{Integer.valueOf(i2), Integer.valueOf(i3)}));
     }
 
+
+    /**
+     * UI刷新线程，包括播放进度
+     **/
     private Thread mUpdateThread = null;
 
     private void startUIUpdateThread() {
@@ -581,62 +602,70 @@ public class KsyunVodActivity extends Activity {
     }
 
 
-    @Override
-    protected void onPause() {
-        if (mVideoView != null) {
-            if (mVideoView.isPlaying()) {
-                mVideoView.pause();
-                mIsSystemCallPause = true;
+    /**
+     * 电池状态监听
+     **/
+    private BatteryReceiver batteryReceiver;
+    private TextView batteryForground;
+    private TextView batteryBackGround;
+    private LinearLayout batteryShape;
+
+    public void initBatteryReceiver() {
+        this.batteryForground = (TextView) findViewById(R.id.dianliang);
+        this.batteryBackGround = (TextView) findViewById(R.id.dianliang2);
+        this.batteryShape = (LinearLayout) findViewById(R.id.dianliang3);
+
+        this.batteryReceiver = new BatteryReceiver();
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction("android.intent.action.BATTERY_CHANGED");
+        intentFilter.addAction("android.intent.action.NEW_OUTGOING_CALL");
+        registerReceiver(this.batteryReceiver, intentFilter);
+    }
+
+    public class BatteryReceiver extends BroadcastReceiver {
+        public void onReceive(Context context, @NonNull Intent intent) {
+            String action = intent.getAction();
+            if (action != null) {
+                if (action.equals("android.intent.action.BATTERY_CHANGED")) {
+                    batteryStateChanged(intent.getIntExtra("status", 0), intent.getIntExtra("level", 0), intent.getIntExtra("temperature", 0));
+                }
             }
         }
-        /* 让播放进度UI更新线程退出 */
-        stopUIUpdateThread();
-        super.onPause();
     }
 
-
-    @Override
-    protected void onResume() {
-        if (mVideoView != null) {
-            /* 普通播放，后台切换回来，恢复之前的播放状态 */
-            if (mIsSystemCallPause) {
-                hideBottomUIMenu();
-                mVideoView.start();
-                mIsSystemCallPause = false;
-                mVideoView.setVisibility(View.VISIBLE);
-                mVideoView.setComeBackFromShare(true);
-                startUIUpdateThread();
-            }
+    private void batteryStateChanged(int i, int i2, int i3) {
+        if (i2 > 10) {
+            this.batteryBackGround.setBackgroundColor(Color.parseColor("#ffffff"));
+            this.batteryShape.setBackgroundResource(R.drawable.play_ctrl_battery);
+        } else {
+            this.batteryBackGround.setBackgroundColor(Color.parseColor("#FF0000"));
+            this.batteryShape.setBackgroundResource(R.drawable.play_ctrl_battery1);
         }
-        super.onResume();
-    }
-
-
-    @Override
-    protected void onStop() {
-        super.onStop();
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (batteryReceiver != null) {
-            unregisterReceiver(batteryReceiver);
+        if (i == 2) {
+            this.batteryShape.setBackgroundResource(R.drawable.play_ctrl_battery2);
+            i2 = 1;
         }
-        finishPlay();
-        super.onDestroy();
+        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -1);
+        layoutParams.weight = getBatteryWeight(i2);
+        this.batteryForground.setLayoutParams(layoutParams);
     }
 
-    private void finishPlay() {
-        if (mVideoView != null) {
-            mVideoView.release();
-            mVideoView = null;
+    public float getBatteryWeight(int i) {
+        double d = (double) i;
+        if (i > 99) {
+            d = 99.0d;
         }
-        setResult(38438);
+        if (i < 1) {
+            d = 1.0d;
+        }
+        d = 1.0d - (d / 100.0d);
+        return ((float) ((100.0d - (100.0d * d)) / d));
     }
+
 
     /**
      * 隐藏虚拟按键，并且全屏
-     */
+     **/
     protected void hideBottomUIMenu() {
         /* 隐藏虚拟按键，并且全屏 */
         if (Build.VERSION.SDK_INT > 11 && Build.VERSION.SDK_INT < 19) {
@@ -647,6 +676,22 @@ public class KsyunVodActivity extends Activity {
             int uiOptions = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_FULLSCREEN;
             decorView.setSystemUiVisibility(uiOptions);
         }
+    }
+
+    /**
+     * 设置屏幕亮度
+     **/
+    public void setBrightness(int paramInt) {
+        if (paramInt < 0) {
+            paramInt = 0;
+        }
+        if (paramInt > 100) {
+            paramInt = 100;
+        }
+        WindowManager.LayoutParams localLayoutParams = this.getWindow().getAttributes();
+        localLayoutParams.screenBrightness = (1.0F * paramInt / 100.0F);
+        this.getWindow().setAttributes(localLayoutParams);
+        this.distanceBritness = paramInt;
     }
 
     private void showError(int what) {
@@ -734,65 +779,49 @@ public class KsyunVodActivity extends Activity {
         finish();
     }
 
-
-    private BatteryReceiver batteryReceiver;
-
-    private TextView dianliangTextView;
-    private TextView dianliangTextView2;
-    private LinearLayout dianliangTextView3;
-
-    public void initBatteryReceiver() {
-        this.dianliangTextView = (TextView) findViewById(R.id.dianliang);
-        this.dianliangTextView2 = (TextView) findViewById(R.id.dianliang2);
-        this.dianliangTextView3 = (LinearLayout) findViewById(R.id.dianliang3);
-
-        this.batteryReceiver = new BatteryReceiver();
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction("android.intent.action.BATTERY_CHANGED");
-        intentFilter.addAction("android.intent.action.NEW_OUTGOING_CALL");
-        registerReceiver(this.batteryReceiver, intentFilter);
-    }
-
-
-    public class BatteryReceiver extends BroadcastReceiver {
-        public void onReceive(Context context, @NonNull Intent intent) {
-            String action = intent.getAction();
-            if (action != null) {
-                if (action.equals("android.intent.action.BATTERY_CHANGED")) {
-                    batteryStateChanged(intent.getIntExtra("status", 0), intent.getIntExtra("level", 0), intent.getIntExtra("temperature", 0));
-                }
+    @Override
+    protected void onPause() {
+        if (mVideoView != null) {
+            if (mVideoView.isPlaying()) {
+                mVideoView.pause();
+                mIsSystemCallPause = true;
             }
         }
+        /* 让播放进度UI更新线程退出 */
+        stopUIUpdateThread();
+        super.onPause();
     }
 
-
-    private void batteryStateChanged(int i, int i2, int i3) {
-        if (i2 > 10) {
-            this.dianliangTextView2.setBackgroundColor(Color.parseColor("#ffffff"));
-            this.dianliangTextView3.setBackgroundResource(R.drawable.play_ctrl_battery);
-        } else {
-            this.dianliangTextView2.setBackgroundColor(Color.parseColor("#FF0000"));
-            this.dianliangTextView3.setBackgroundResource(R.drawable.play_ctrl_battery1);
+    @Override
+    protected void onResume() {
+        if (mVideoView != null) {
+            /* 普通播放，后台切换回来，恢复之前的播放状态 */
+            if (mIsSystemCallPause) {
+                hideBottomUIMenu();
+                mVideoView.start();
+                mIsSystemCallPause = false;
+                mVideoView.setVisibility(View.VISIBLE);
+                mVideoView.setComeBackFromShare(true);
+                startUIUpdateThread();
+            }
         }
-        if (i == 2) {
-            this.dianliangTextView3.setBackgroundResource(R.drawable.play_ctrl_battery2);
-            i2 = 1;
-        }
-        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(-1, -1);
-        layoutParams.weight = getBatteryWeight(i2);
-        this.dianliangTextView.setLayoutParams(layoutParams);
+        super.onResume();
     }
 
+    @Override
+    protected void onDestroy() {
+        if (batteryReceiver != null) {
+            unregisterReceiver(batteryReceiver);
+        }
+        finishPlay();
+        super.onDestroy();
+    }
 
-    public float getBatteryWeight(int i) {
-        double d = (double) i;
-        if (i > 99) {
-            d = 99.0d;
+    private void finishPlay() {
+        if (mVideoView != null) {
+            mVideoView.release();
+            mVideoView = null;
         }
-        if (i < 1) {
-            d = 1.0d;
-        }
-        d = 1.0d - (d / 100.0d);
-        return ((float) ((100.0d - (100.0d * d)) / d));
+        setResult(38438);
     }
 }
