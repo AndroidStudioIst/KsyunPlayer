@@ -7,17 +7,22 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.media.AudioManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
-import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
@@ -27,7 +32,6 @@ import android.widget.Toast;
 import com.ksyun.media.player.IMediaPlayer;
 import com.ksyun.media.player.KSYMediaPlayer;
 import com.ksyun.media.player.KSYTextureView;
-import com.ksyun.media.player.misc.KSYProbeMediaInfo;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -44,6 +48,9 @@ public class KsyunVodActivity extends Activity {
     private boolean mIsNeedUpdateUIProgress;
     private Handler mainUIHandler = null;
 
+    private LinearLayout header_bar;
+    private LinearLayout ctrl_bar;
+
     private SeekBar seekBar;
     private TextView tv_title;
     private TextView tv_position;
@@ -53,10 +60,31 @@ public class KsyunVodActivity extends Activity {
     private ImageView v_back;
     private ImageView v_play;
     private ImageView v_rotate;
+    private ImageView v_lock;
     private boolean mIsTouchingSeekbar = false;
 
 
     private int videoScalingMode = KSYMediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT;
+
+
+    private int maxDuration;
+    private int nowPosition;
+    private int distanceX;
+    private float clickX;
+    private float clickY;
+    private float moveY;
+    private int distanceBritness;
+    private int currentVolume;
+    private int distanceVolume;
+    private int dangqianliandu;
+    private int clickVolume;
+    private int maxVolume;
+    private int action;
+    private AudioManager audioManager;
+    private boolean locked = false;//屏幕锁定状态
+    private int width;
+    private int height;
+
 
     private String url;
     private String title;
@@ -82,6 +110,10 @@ public class KsyunVodActivity extends Activity {
         mVideoView.setKeepScreenOn(true);
         mVideoView.setTimeout(120, 120);
         //mVideoView.setPlayableRanges(0, 60000);//设置试看时间
+
+        header_bar = (LinearLayout) findViewById(R.id.header_bar);
+        ctrl_bar = (LinearLayout) findViewById(R.id.ctrl_bar);
+
         seekBar = (SeekBar) findViewById(R.id.seekbar);
         tv_title = (TextView) findViewById(R.id.v_title);
         tv_position = (TextView) findViewById(R.id.tv_position);
@@ -90,6 +122,28 @@ public class KsyunVodActivity extends Activity {
         v_back = (ImageView) findViewById(R.id.v_back);
         v_play = (ImageView) findViewById(R.id.v_play);
         v_rotate = (ImageView) findViewById(R.id.v_rotate);
+        v_lock = (ImageView) findViewById(R.id.v_player_lock);
+
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        this.width = displayMetrics.widthPixels;
+        this.height = displayMetrics.heightPixels;
+
+        this.audioManager = ((AudioManager) getSystemService(AUDIO_SERVICE));
+        if (audioManager != null) {
+            this.maxVolume = this.audioManager.getStreamMaxVolume(3);
+            this.maxVolume *= 6;
+        }
+        float f = this.currentVolume * 6;
+        try {
+            int k = Settings.System.getInt(getContentResolver(), "screen_brightness");
+            f = 1.0F * k / 255.0F;
+        } catch (Settings.SettingNotFoundException e) {
+            e.printStackTrace();
+        }
+        this.distanceBritness = ((int) (f * 100.0F));
+        this.dangqianliandu = ((int) (f * 100.0F));
+
         initVideoListener();
         hideBottomUIMenu();
     }
@@ -187,6 +241,116 @@ public class KsyunVodActivity extends Activity {
             }
         });
 
+        mVideoView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent motionEvent) {
+                float x = motionEvent.getX();
+                float y = motionEvent.getY();
+                float f;
+                switch (motionEvent.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        maxDuration = (int) mVideoView.getDuration() / 1000;
+                        nowPosition = (int) mVideoView.getCurrentPosition() / 1000;
+                        clickX = x;
+                        clickY = y;
+                        action = 1;
+                        currentVolume = audioManager.getStreamVolume(3);
+                        clickVolume = (currentVolume * 6);
+                        moveY = y;
+                        break;
+                    case MotionEvent.ACTION_UP:
+                        new Handler().postDelayed(new Runnable() {
+                            public void run() {
+                                tv_info.setVisibility(GONE);
+                                switch (action) {
+                                    case 2:
+                                        if (!locked) {
+                                            if (mVideoView.getDuration() <= 5) {
+                                                return;
+                                            }
+                                            mVideoView.seekTo(distanceX * 1000);
+                                            break;
+                                        }
+                                    case 3:
+                                        dangqianliandu = distanceBritness;
+                                        break;
+                                    case 4:
+                                        break;
+                                    default:
+                                        onClickEmptyArea();
+                                        break;
+                                }
+                            }
+                        }, 100L);
+
+                    case MotionEvent.ACTION_MOVE:
+                        if (!locked) {
+                            f = Math.abs(x - clickX);
+                            float abs = Math.abs(y - clickY);
+                            if (action == 1) {
+                                if (f > 50.0f && abs < 50.0f) {
+                                    action = 2;
+                                }
+                                if (f < 50.0f && abs > 50.0f && ((double) clickX) < ((double) width) * 0.25d) {
+                                    action = 3;
+                                }
+                                if (f < 50.0f && abs > 50.0f && ((double) clickX) > ((double) width) * 0.75d) {
+                                    action = 4;
+                                }
+                            }
+                            switch (action) {
+                                case 2:
+                                    distanceX = (int) ((float) ((((double) (((x - clickX) / ((float) width)) * ((float) maxDuration))) * 0.3d) + ((double) nowPosition)));
+                                    if (distanceX < 0) {
+                                        distanceX = 0;
+                                    }
+                                    if (distanceX > maxDuration) {
+                                        distanceX = maxDuration;
+                                    }
+                                    tv_info.setVisibility(VISIBLE);
+                                    tv_info.setText(formatTimeText(distanceX) + "/" + formatTimeText(maxDuration));
+                                    break;
+                                case 3:
+                                    float f6 = (y - moveY) * 100.0F / height;
+
+                                    distanceBritness = (dangqianliandu - (int) f6);
+                                    if (distanceBritness > 100) {
+                                        distanceBritness = 100;
+                                    }
+                                    if (distanceBritness < 7) {
+                                        distanceBritness = 7;
+                                    }
+                                    tv_info.setVisibility(VISIBLE);
+                                    int j = (distanceBritness - 7) * 100 / 93;
+                                    tv_info.setText("亮度：" + j + "%");
+                                    setBrightness(distanceBritness);
+                                    break;
+                                case 4:
+                                    float f7 = (y - moveY) * 100.0F / height;
+
+                                    distanceVolume = (clickVolume - (int) f7);
+                                    if (distanceVolume > maxVolume) {
+                                        distanceVolume = maxVolume;
+                                    }
+                                    if (distanceVolume < 0) {
+                                        distanceVolume = 0;
+                                    }
+                                    tv_info.setVisibility(VISIBLE);
+                                    int k = distanceVolume * 100 / maxVolume;
+                                    tv_info.setText("音量：" + k + "%");
+                                    int m = distanceVolume / 6;
+                                    audioManager.setStreamVolume(3, m, 0);
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                        break;
+                }
+                return true;
+            }
+        });
+
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -249,6 +413,72 @@ public class KsyunVodActivity extends Activity {
         });
 
         mainUIHandler = new MyHandler(this);
+    }
+
+    private void onClickEmptyArea() {
+        if (locked) {
+            if (v_lock.getVisibility() != VISIBLE) {
+                v_lock.setVisibility(VISIBLE);
+                Animation animation3 = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_left_in);
+                v_lock.startAnimation(animation3);
+            } else {
+                Animation animation3 = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_left_out);
+                v_lock.startAnimation(animation3);
+                v_lock.setVisibility(GONE);
+            }
+        }else{
+            if (header_bar.getVisibility() == GONE) {
+                showCtrlBar();
+            } else {
+                hideBottomUIMenu();
+                hideCtrlBar();
+            }
+        }
+    }
+
+    private void showCtrlBar() {
+        header_bar.setVisibility(VISIBLE);
+        Animation animation = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_top_in);
+        header_bar.startAnimation(animation);
+
+        ctrl_bar.setVisibility(VISIBLE);
+        Animation animation2 = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_bottom_in);
+        ctrl_bar.startAnimation(animation2);
+
+        v_lock.setVisibility(VISIBLE);
+        Animation animation3 = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_left_in);
+        v_lock.startAnimation(animation3);
+
+        v_rotate.setVisibility(VISIBLE);
+        v_rotate.startAnimation(animation2);
+    }
+
+    private void hideCtrlBar() {
+        Animation animation = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_top_out);
+        header_bar.startAnimation(animation);
+        header_bar.setVisibility(GONE);
+        Animation animation2 = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_bottom_out);
+        ctrl_bar.startAnimation(animation2);
+        ctrl_bar.setVisibility(GONE);
+        Animation animation3 = AnimationUtils.loadAnimation(KsyunVodActivity.this, R.anim.anim_left_out);
+        v_lock.startAnimation(animation3);
+        v_lock.setVisibility(GONE);
+
+        v_rotate.startAnimation(animation2);
+        v_rotate.setVisibility(GONE);
+    }
+
+    public void setBrightness(int paramInt) {
+        if (paramInt < 0) {
+            paramInt = 0;
+        }
+        if (paramInt > 100) {
+            paramInt = 100;
+        }
+        WindowManager.LayoutParams localLayoutParams = this.getWindow().getAttributes();
+        localLayoutParams.screenBrightness = (1.0F * paramInt / 100.0F);
+        this.getWindow().setAttributes(localLayoutParams);
+        this.distanceBritness = paramInt;
     }
 
     private void userSeekPlayProgress(int seekPostionMs, int max) {

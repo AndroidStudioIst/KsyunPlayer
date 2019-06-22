@@ -1,16 +1,13 @@
 package com.ksyun.player;
 
-import android.app.Activity;
 import android.graphics.Bitmap;
-import android.util.Log;
-import android.widget.ImageButton;
 import android.widget.ImageView;
 
 import com.ksyun.media.player.misc.KSYProbeMediaInfo;
 
 public class KsyunUtils {
 
-    public static void loadVideoThumbToImageView(final String localUrl, final long time, final int bitmapWidth, final ImageView imageView) {
+    public static void loadVideoThumbAsync(final String localUrl, final long time, final int bitmapWidth, final ImageView imageView) {
         new Thread(new Runnable() {
             @Override
             public void run() {

@@ -28,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
                         .start();
             }
         });
-        //KsyunUtils.loadVideoThumbToImageView("/storage/emulated/0/Android/data/com.hammer.tools/files/download/0091BF3331E5E53F3D5E51BB243B74A5/千与千寻.BD1280高清中字版.mp4", 200, (ImageView) findViewById(R.id.thumb));
+        //KsyunUtils.loadVideoThumbAsync("/storage/emulated/0/Android/data/com.hammer.tools/files/download/0091BF3331E5E53F3D5E51BB243B74A5/千与千寻.BD1280高清中字版.mp4", 200, (ImageView) findViewById(R.id.thumb));
     }
 
     @Override
