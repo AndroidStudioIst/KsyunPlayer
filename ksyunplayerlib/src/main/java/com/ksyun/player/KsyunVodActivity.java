@@ -88,17 +88,20 @@ public class KsyunVodActivity extends Activity {
 
     private String url;
     private String title;
+    private boolean isLive = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ksyun_vod);
+        PlayerDataBaseHelper.openDataBase(this);//打开播放记录数据库
         Log.e("info", "onCreate");
         initView();
         initBatteryReceiver();
         url = getIntent().getStringExtra("url");
         title = getIntent().getStringExtra("title");
         videoScalingMode = getIntent().getIntExtra("scale", 1);
+        isLive = getIntent().getBooleanExtra("live", false);
         openVideo(title, url);
     }
 
@@ -169,6 +172,12 @@ public class KsyunVodActivity extends Activity {
                 mLoadView.setVisibility(View.GONE);
                 mVideoView.setVideoScalingMode(videoScalingMode);
                 mVideoView.start();
+                if (!isLive) { //如果不是直播就跳转到上次播放位置
+                    long position = PlayerDataBaseHelper.getPosition(url);
+                    if (position > 0) {
+                        mVideoView.seekTo(position);
+                    }
+                }
                 v_play.setImageResource(R.drawable.v_play_pause);
                 startUIUpdateThread();
             }
@@ -740,7 +749,7 @@ public class KsyunVodActivity extends Activity {
                 errorMsg = "MEDIA_ERROR_ACCESSS_FORBIDDEN";
                 break;
             case IMediaPlayer.MEDIA_ERROR_TARGET_NOT_FOUND:
-                errorMsg = "MEDIA_ERROR_TARGET_NOT_FOUND";
+                errorMsg = "没有发现目标文件";
                 break;
             case IMediaPlayer.MEDIA_ERROR_OTHER_ERROR_CODE:
                 errorMsg = "MEDIA_ERROR_OTHER_ERROR_CODE";
@@ -819,9 +828,27 @@ public class KsyunVodActivity extends Activity {
 
     private void finishPlay() {
         if (mVideoView != null) {
+            stopUIUpdateThread();
+            if (url != null) {
+                if (!isLive) {
+                    PlayerDataBaseHelper.addPlayerInfo(url, mVideoView.getCurrentPosition());
+                }
+            }
             mVideoView.release();
             mVideoView = null;
         }
         setResult(38438);
+    }
+
+    /**
+     * 屏幕方向变化，应修改宽高防止手势比例异常
+     **/
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        this.width = displayMetrics.widthPixels;
+        this.height = displayMetrics.heightPixels;
     }
 }
