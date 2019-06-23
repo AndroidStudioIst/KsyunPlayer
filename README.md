@@ -14,7 +14,7 @@ allprojects {
 
 ```java
 dependencies {
- implementation 'com.github.W252016021:KsyunPlayer:v1.0'
+ implementation 'com.github.W252016021:KsyunPlayer:v1.1'
 }
 ```
 ##### 调用播放:
