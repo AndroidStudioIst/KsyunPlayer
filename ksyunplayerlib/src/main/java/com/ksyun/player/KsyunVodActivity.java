@@ -8,6 +8,7 @@ import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,16 +16,21 @@ import android.os.Handler;
 import android.os.Message;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -32,9 +38,15 @@ import android.widget.Toast;
 import com.ksyun.media.player.IMediaPlayer;
 import com.ksyun.media.player.KSYMediaPlayer;
 import com.ksyun.media.player.KSYTextureView;
+import com.ksyun.media.player.misc.ITrackInfo;
+import com.ksyun.media.player.misc.KSYTrackInfo;
+import com.ksyun.player.adapter.TrackListAdapter;
+import com.ksyun.player.bean.TrackEntity;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
@@ -61,6 +73,9 @@ public class KsyunVodActivity extends Activity {
     private ImageView v_play;
     private ImageView v_rotate;
     private ImageView v_lock;
+    private ImageView v_track;
+    private ImageView v_speed;
+    private ImageView v_scaling;
     private boolean mIsTouchingSeekbar = false;
 
 
@@ -90,6 +105,8 @@ public class KsyunVodActivity extends Activity {
     private String title;
     private boolean isLive = false;
 
+    private List<TrackEntity> videoList = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -98,6 +115,7 @@ public class KsyunVodActivity extends Activity {
         Log.e("info", "onCreate");
         initView();
         initBatteryReceiver();
+
         url = getIntent().getStringExtra("url");
         title = getIntent().getStringExtra("title");
         videoScalingMode = getIntent().getIntExtra("scale", 1);
@@ -126,7 +144,9 @@ public class KsyunVodActivity extends Activity {
         v_play = (ImageView) findViewById(R.id.v_play);
         v_rotate = (ImageView) findViewById(R.id.v_rotate);
         v_lock = (ImageView) findViewById(R.id.v_player_lock);
-
+        v_track = (ImageView) findViewById(R.id.v_track);
+        v_scaling = (ImageView) findViewById(R.id.v_scaling);
+        v_speed = (ImageView) findViewById(R.id.v_speed);
         DisplayMetrics displayMetrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
         this.width = displayMetrics.widthPixels;
@@ -149,6 +169,8 @@ public class KsyunVodActivity extends Activity {
 
         initVideoListener();
         hideBottomUIMenu();
+
+
     }
 
     private void openVideo(String title, String url) {
@@ -165,200 +187,178 @@ public class KsyunVodActivity extends Activity {
     }
 
     private void initVideoListener() {
-        mVideoView.setOnPreparedListener(new IMediaPlayer.OnPreparedListener() {
-            @Override
-            public void onPrepared(IMediaPlayer iMediaPlayer) {
-                Log.e("info", "onPrepared");
-                mLoadView.setVisibility(View.GONE);
-                mVideoView.setVideoScalingMode(videoScalingMode);
-                mVideoView.start();
-                if (!isLive) { //如果不是直播就跳转到上次播放位置
-                    long position = PlayerDataBaseHelper.getPosition(url);
-                    if (position > 0) {
-                        mVideoView.seekTo(position);
-                    }
-                }
-                v_play.setImageResource(R.drawable.v_play_pause);
-                startUIUpdateThread();
-            }
-        });
-
-        mVideoView.setOnErrorListener(new IMediaPlayer.OnErrorListener() {
-            @Override
-            public boolean onError(IMediaPlayer iMediaPlayer, int what, int extra) {
-                showError(what);
-                Log.e("info", "OnErrorListener, Error:" + what + ",extra:" + extra);
-                return false;
-            }
-        });
-
-        mVideoView.setOnBufferingUpdateListener(new IMediaPlayer.OnBufferingUpdateListener() {
-            @Override
-            public void onBufferingUpdate(IMediaPlayer iMediaPlayer, int i) {
-                if (!mIsTouchingSeekbar) {
-                    loadingText.setText("缓冲: " + i + "%");
-                    mLoadView.setVisibility(i == 100 ? View.GONE : View.VISIBLE);
+        mVideoView.setOnPreparedListener(iMediaPlayer -> {
+            Log.e("info", "onPrepared");
+            mLoadView.setVisibility(View.GONE);
+            mVideoView.setVideoScalingMode(videoScalingMode);
+            mVideoView.start();
+            if (!isLive) { //如果不是直播就跳转到上次播放位置
+                long position = PlayerDataBaseHelper.getPosition(url);
+                if (position > 0) {
+                    mVideoView.seekTo(position);
                 }
             }
+            v_play.setImageResource(R.drawable.v_play_pause);
+            startUIUpdateThread();
         });
 
-        mVideoView.setOnInfoListener(new IMediaPlayer.OnInfoListener() {
-            @Override
-            public boolean onInfo(IMediaPlayer iMediaPlayer, int i, int i1) {
-                switch (i) {
-                    case KSYMediaPlayer.MEDIA_INFO_BUFFERING_START:
-                        Log.e("info", "开始缓冲数据");
-                        break;
-                    case KSYMediaPlayer.MEDIA_INFO_BUFFERING_END:
-                        Log.e("info", "数据缓冲完毕");
-                        break;
-                    case KSYMediaPlayer.MEDIA_INFO_AUDIO_RENDERING_START:
-                        Log.e("info", "开始播放音频");
-                        break;
-                    case KSYMediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START:
-                        Log.e("info", "开始渲染视频");
-                        break;
-                    case KSYMediaPlayer.MEDIA_INFO_SUGGEST_RELOAD:
-                        // 播放SDK有做快速开播的优化，在流的音视频数据交织并不好时，可能只找到某一个流的信息
-                        // 当播放器读到另一个流的数据时会发出此消息通知
-                        // 请务必调用reload接口
-                        Log.e("info", "MEDIA_INFO_SUGGEST_RELOAD");
-                        break;
-                    case KSYMediaPlayer.MEDIA_INFO_RELOADED:
-                        Log.e("info", "reload成功的消息通知");
-                        break;
-                    default:
-                        Log.e("info", "OnInfo: " + i);
-                        break;
-                }
-                return false;
+        mVideoView.setOnErrorListener((iMediaPlayer, what, extra) -> {
+            showError(what);
+            Log.e("info", "OnErrorListener, Error:" + what + ",extra:" + extra);
+            return false;
+        });
+
+        mVideoView.setOnBufferingUpdateListener((iMediaPlayer, i) -> {
+            if (!mIsTouchingSeekbar) {
+                loadingText.setText("缓冲: " + i + "%");
+                mLoadView.setVisibility(i == 100 ? View.GONE : View.VISIBLE);
             }
         });
 
-        mVideoView.setOnMessageListener(new IMediaPlayer.OnMessageListener() {
-            @Override
-            public void onMessage(IMediaPlayer iMediaPlayer, Bundle bundle) {
-                Log.e("info", "name:" + bundle.toString());
+        mVideoView.setOnInfoListener((iMediaPlayer, i, i1) -> {
+            switch (i) {
+                case KSYMediaPlayer.MEDIA_INFO_BUFFERING_START:
+                    Log.e("info", "开始缓冲数据");
+                    break;
+                case KSYMediaPlayer.MEDIA_INFO_BUFFERING_END:
+                    Log.e("info", "数据缓冲完毕");
+                    break;
+                case KSYMediaPlayer.MEDIA_INFO_AUDIO_RENDERING_START:
+                    Log.e("info", "开始播放音频");
+                    break;
+                case KSYMediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START:
+                    Log.e("info", "开始渲染视频");
+                    break;
+                case KSYMediaPlayer.MEDIA_INFO_SUGGEST_RELOAD:
+                    // 播放SDK有做快速开播的优化，在流的音视频数据交织并不好时，可能只找到某一个流的信息
+                    // 当播放器读到另一个流的数据时会发出此消息通知
+                    // 请务必调用reload接口
+                    Log.e("info", "MEDIA_INFO_SUGGEST_RELOAD");
+                    break;
+                case KSYMediaPlayer.MEDIA_INFO_RELOADED:
+                    Log.e("info", "reload成功的消息通知");
+                    break;
+                default:
+                    Log.e("info", "OnInfo: " + i);
+                    break;
             }
+            return false;
         });
 
-        mVideoView.setOnCompletionListener(new IMediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(IMediaPlayer iMediaPlayer) {
-                finishPlay();
-                finish();
-            }
+        mVideoView.setOnMessageListener((iMediaPlayer, bundle) ->
+                Log.e("info", "name:" + bundle.toString())
+        );
+
+        mVideoView.setOnCompletionListener(iMediaPlayer -> {
+            finishPlay();
+            finish();
         });
 
         /*播放器手势控制*/
-        mVideoView.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent motionEvent) {
-                float x = motionEvent.getX();
-                float y = motionEvent.getY();
-                float f;
-                switch (motionEvent.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        maxDuration = (int) mVideoView.getDuration() / 1000;
-                        nowPosition = (int) mVideoView.getCurrentPosition() / 1000;
-                        clickX = x;
-                        clickY = y;
-                        action = 1;
-                        currentVolume = audioManager.getStreamVolume(3);
-                        clickVolume = (currentVolume * 6);
-                        moveY = y;
-                        break;
-                    case MotionEvent.ACTION_UP:
-                        new Handler().postDelayed(new Runnable() {
-                            public void run() {
-                                tv_info.setVisibility(GONE);
-                                switch (action) {
-                                    case 2:
-                                        if (!locked) {
-                                            if (mVideoView.getDuration() <= 5) {
-                                                return;
-                                            }
-                                            mVideoView.seekTo(distanceX * 1000);
-                                            break;
-                                        }
-                                    case 3:
-                                        dangqianliandu = distanceBritness;
-                                        break;
-                                    case 4:
-                                        break;
-                                    default:
-                                        onClickEmptyArea();
-                                        break;
+        mVideoView.setOnTouchListener((v, motionEvent) -> {
+            float x = motionEvent.getX();
+            float y = motionEvent.getY();
+            float f;
+            switch (motionEvent.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    maxDuration = (int) mVideoView.getDuration() / 1000;
+                    nowPosition = (int) mVideoView.getCurrentPosition() / 1000;
+                    clickX = x;
+                    clickY = y;
+                    action = 1;
+                    currentVolume = audioManager.getStreamVolume(3);
+                    clickVolume = (currentVolume * 6);
+                    moveY = y;
+                    break;
+                case MotionEvent.ACTION_UP:
+                    new Handler().postDelayed(() -> {
+                        tv_info.setVisibility(GONE);
+                        switch (action) {
+                            case 2:
+                                if (!locked) {
+                                    if (mVideoView.getDuration() <= 5) {
+                                        return;
+                                    }
+                                    mVideoView.seekTo(distanceX * 1000);
+                                    break;
                                 }
+                            case 3:
+                                dangqianliandu = distanceBritness;
+                                break;
+                            case 4:
+                                break;
+                            default:
+                                onClickEmptyArea();
+                                break;
+                        }
+                    }, 100L);
+
+                case MotionEvent.ACTION_MOVE:
+                    if (!locked) {
+                        f = Math.abs(x - clickX);/*x方向滑动的绝对距离*/
+                        float abs = Math.abs(y - clickY);/*取滑动y方向的绝对距离*/
+                        if (action == 1) {
+                            if (f > 50.0f && abs < 50.0f) {
+                                action = 2;/*快进*/
                             }
-                        }, 100L);
-
-                    case MotionEvent.ACTION_MOVE:
-                        if (!locked) {
-                            f = Math.abs(x - clickX);/*x方向滑动的绝对距离*/
-                            float abs = Math.abs(y - clickY);/*取滑动y方向的绝对距离*/
-                            if (action == 1) {
-                                if (f > 50.0f && abs < 50.0f) {
-                                    action = 2;/*快进*/
-                                }
-                                if (f < 50.0f && abs > 50.0f && ((double) clickX) < ((double) width) * 0.25d) {
-                                    action = 3;/*亮度*/
-                                }
-                                if (f < 50.0f && abs > 50.0f && ((double) clickX) > ((double) width) * 0.75d) {
-                                    action = 4;/*音量*/
-                                }
+                            if (f < 50.0f && abs > 50.0f && ((double) clickX) < ((double) width) * 0.25d) {
+                                action = 3;/*亮度*/
                             }
-                            switch (action) {
-                                case 2:
-                                    distanceX = (int) ((float) ((((double) (((x - clickX) / ((float) width)) * ((float) maxDuration))) * 0.3d) + ((double) nowPosition)));
-                                    if (distanceX < 0) {
-                                        distanceX = 0;
-                                    }
-                                    if (distanceX > maxDuration) {
-                                        distanceX = maxDuration;
-                                    }
-                                    tv_info.setVisibility(VISIBLE);
-                                    tv_info.setText(formatTimeText(distanceX) + "/" + formatTimeText(maxDuration));
-                                    break;
-                                case 3:
-                                    float f6 = (y - moveY) * 100.0F / height;
-
-                                    distanceBritness = (dangqianliandu - (int) f6);
-                                    if (distanceBritness > 100) {
-                                        distanceBritness = 100;
-                                    }
-                                    if (distanceBritness < 7) {
-                                        distanceBritness = 7;
-                                    }
-                                    tv_info.setVisibility(VISIBLE);
-                                    int j = (distanceBritness - 7) * 100 / 93;
-                                    tv_info.setText("亮度：" + j + "%");
-                                    setBrightness(distanceBritness);
-                                    break;
-                                case 4:
-                                    float f7 = (y - moveY) * 100.0F / height;
-
-                                    distanceVolume = (clickVolume - (int) f7);
-                                    if (distanceVolume > maxVolume) {
-                                        distanceVolume = maxVolume;
-                                    }
-                                    if (distanceVolume < 0) {
-                                        distanceVolume = 0;
-                                    }
-                                    tv_info.setVisibility(VISIBLE);
-                                    int k = distanceVolume * 100 / maxVolume;
-                                    tv_info.setText("音量：" + k + "%");
-                                    int m = distanceVolume / 6;
-                                    audioManager.setStreamVolume(3, m, 0);
-                                    break;
-                                default:
-                                    break;
+                            if (f < 50.0f && abs > 50.0f && ((double) clickX) > ((double) width) * 0.75d) {
+                                action = 4;/*音量*/
                             }
                         }
-                        break;
-                }
-                return true;
+                        switch (action) {
+                            case 2:
+                                distanceX = (int) ((float) ((((double) (((x - clickX) / ((float) width)) * ((float) maxDuration))) * 0.3d) + ((double) nowPosition)));
+                                if (distanceX < 0) {
+                                    distanceX = 0;
+                                }
+                                if (distanceX > maxDuration) {
+                                    distanceX = maxDuration;
+                                }
+                                tv_info.setVisibility(VISIBLE);
+                                tv_info.setText(formatTimeText(distanceX) + "/" + formatTimeText(maxDuration));
+                                break;
+                            case 3:
+                                float f6 = (y - moveY) * 100.0F / height;
+
+                                distanceBritness = (dangqianliandu - (int) f6);
+                                if (distanceBritness > 100) {
+                                    distanceBritness = 100;
+                                }
+                                if (distanceBritness < 7) {
+                                    distanceBritness = 7;
+                                }
+                                tv_info.setVisibility(VISIBLE);
+                                int j = (distanceBritness - 7) * 100 / 93;
+                                tv_info.setText("亮度：" + j + "%");
+                                setBrightness(distanceBritness);
+                                break;
+                            case 4:
+                                float f7 = (y - moveY) * 100.0F / height;
+
+                                distanceVolume = (clickVolume - (int) f7);
+                                if (distanceVolume > maxVolume) {
+                                    distanceVolume = maxVolume;
+                                }
+                                if (distanceVolume < 0) {
+                                    distanceVolume = 0;
+                                }
+                                tv_info.setVisibility(VISIBLE);
+                                int k = distanceVolume * 100 / maxVolume;
+                                tv_info.setText("音量：" + k + "%");
+                                int m = distanceVolume / 6;
+                                audioManager.setStreamVolume(3, m, 0);
+                                break;
+                            default:
+                                v.performClick();
+                                break;
+                        }
+                    }
+                    break;
             }
+            return true;
         });
 
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -384,58 +384,59 @@ public class KsyunVodActivity extends Activity {
             }
         });
 
-        v_back.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finishPlay();
-                finish();
-            }
+        v_back.setOnClickListener(v -> {
+            finishPlay();
+            finish();
         });
 
 
-        v_play.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (mVideoView.isPlaying()) {
-                    v_play.setImageResource(R.drawable.v_play_arrow);
-                    mVideoView.pause();
-                } else {
-                    v_play.setImageResource(R.drawable.v_play_pause);
-                    mVideoView.start();
-                }
+        v_play.setOnClickListener(v -> {
+            if (mVideoView.isPlaying()) {
+                v_play.setImageResource(R.drawable.v_play_arrow);
+                mVideoView.pause();
+            } else {
+                v_play.setImageResource(R.drawable.v_play_pause);
+                mVideoView.start();
             }
         });
 
-        v_rotate.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                Configuration mConfiguration = getResources().getConfiguration();  /* 获取设置的配置信息 */
-                int ori = mConfiguration.orientation;                           /* 获取屏幕方向 */
-                if (ori == 2) {
-                    /* 横屏 -> 竖屏 */
-                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);            /* 强制为竖屏 */
-                } else if (ori == 1) {
-                    /* 竖屏 -> 横屏 */
-                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);    /* 强制为横屏 */
-                }
+        v_rotate.setOnClickListener(v -> {
+            Configuration mConfiguration = getResources().getConfiguration();  /* 获取设置的配置信息 */
+            int ori = mConfiguration.orientation;                           /* 获取屏幕方向 */
+            if (ori == 2) {
+                /* 横屏 -> 竖屏 */
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);            /* 强制为竖屏 */
+            } else if (ori == 1) {
+                /* 竖屏 -> 横屏 */
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);    /* 强制为横屏 */
             }
         });
 
-        v_lock.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (!locked) {
-                    locked = true;
-                    hideCtrlBar();
-                    v_lock.setImageResource(R.drawable.v_player_locked);
-                } else {
-                    v_lock.setImageResource(R.drawable.v_player_unlocked);
-                    locked = false;
-                    showCtrlBar();
-                }
+        v_lock.setOnClickListener(v -> {
+            if (!locked) {
+                locked = true;
+                hideCtrlBar();
+                v_lock.setImageResource(R.drawable.v_player_locked);
+            } else {
+                v_lock.setImageResource(R.drawable.v_player_unlocked);
+                locked = false;
+                showCtrlBar();
             }
         });
+
+        v_track.setOnClickListener(v ->
+                showTrackListWindow()
+        );
+
+        v_scaling.setOnClickListener(v ->
+                showScalingTrackWindow()
+        );
+        v_speed.setOnClickListener(v ->
+                showSpeedTrackWindow()
+        );
+
+
+
         mainUIHandler = new MyHandler(this);
     }
 
@@ -589,7 +590,7 @@ public class KsyunVodActivity extends Activity {
         WeakReference<KsyunVodActivity> mActivity;
 
         MyHandler(KsyunVodActivity activity) {
-            mActivity = new WeakReference<KsyunVodActivity>(activity);
+            mActivity = new WeakReference<>(activity);
         }
 
         @Override
@@ -746,16 +747,16 @@ public class KsyunVodActivity extends Activity {
                 errorMsg = "未经授权的客户端";
                 break;
             case IMediaPlayer.MEDIA_ERROR_ACCESSS_FORBIDDEN:
-                errorMsg = "MEDIA_ERROR_ACCESSS_FORBIDDEN";
+                errorMsg = "URL被禁止读取";
                 break;
             case IMediaPlayer.MEDIA_ERROR_TARGET_NOT_FOUND:
                 errorMsg = "没有发现目标文件";
                 break;
             case IMediaPlayer.MEDIA_ERROR_OTHER_ERROR_CODE:
-                errorMsg = "MEDIA_ERROR_OTHER_ERROR_CODE";
+                errorMsg = "其他错误";
                 break;
             case IMediaPlayer.MEDIA_ERROR_SERVER_EXCEPTION:
-                errorMsg = "MEDIA_ERROR_SERVER_EXCEPTION";
+                errorMsg = "服务器异常";
                 break;
             case IMediaPlayer.MEDIA_ERROR_INVALID_DATA:
                 errorMsg = "视频格式不支持";
@@ -773,7 +774,7 @@ public class KsyunVodActivity extends Activity {
                 errorMsg = "音频解码失败";
                 break;
             case IMediaPlayer.MEDIA_ERROR_3XX_OVERFLOW:
-                errorMsg = "MEDIA_ERROR_3XX_OVERFLOW";
+                errorMsg = "3XX_OVERFLOW";
                 break;
             case IMediaPlayer.MEDIA_ERROR_INVALID_URL:
                 errorMsg = "无效的URL链接";
@@ -850,5 +851,137 @@ public class KsyunVodActivity extends Activity {
         getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
         this.width = displayMetrics.widthPixels;
         this.height = displayMetrics.heightPixels;
+        showExtralButtons(newConfig.orientation != ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
+
+    private void showExtralButtons(boolean visiable) {
+        v_scaling.setVisibility(visiable ? VISIBLE : GONE);
+        v_track.setVisibility(visiable ? VISIBLE : GONE);
+        v_speed.setVisibility(visiable ? VISIBLE : GONE);
+    }
+
+    private void showTrackListWindow() {
+        View contentView = LayoutInflater.from(this).inflate(R.layout.popuplayout, null);
+        PopupWindow popWnd = new PopupWindow(this);
+        popWnd.setContentView(contentView);
+        popWnd.setWidth(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setWidth(WindowManager.LayoutParams.MATCH_PARENT);
+        int height = getWindowManager().getDefaultDisplay().getHeight();
+        int width = getWindowManager().getDefaultDisplay().getWidth();
+        popWnd.setHeight(height);
+        popWnd.setWidth(width / 3);
+        popWnd.setAnimationStyle(R.style.right_popwin_anim_style);
+        popWnd.setOutsideTouchable(true);
+        popWnd.setBackgroundDrawable(new BitmapDrawable(getResources()));
+
+        TextView title = contentView.findViewById(R.id.title);
+        title.setText("音轨选择");
+        int index = mVideoView.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO);// 获取当前正在播放的音频轨道索引
+        List<TrackEntity> trackEntityList = new ArrayList<>();
+        int i = 0;
+        for (KSYTrackInfo trackInfo : mVideoView.getTrackInfo()) {
+            if (trackInfo.getTrackType() == ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) {
+                i = i + 1;
+                trackEntityList.add(new TrackEntity(trackInfo.getLanguage().replace("und", "音轨" + i), trackInfo.getTrackIndex(), index == trackInfo.getTrackIndex()));
+            }
+        }
+        RecyclerView recyclerView = contentView.findViewById(R.id.list);
+        TrackListAdapter adapter = new TrackListAdapter(this, trackEntityList);
+        recyclerView.setAdapter(adapter);
+        adapter.setOnTrackSelectedListener(trackEntity -> {
+            if (trackEntity.getIndex() != mVideoView.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO)) {
+                mVideoView.selectTrack(trackEntity.getIndex());
+                Toast.makeText(KsyunVodActivity.this, "切换新的音轨", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        popWnd.showAtLocation(mVideoView, Gravity.RIGHT, 0, 0);
+    }
+
+    private void showScalingTrackWindow() {
+        View contentView = LayoutInflater.from(this).inflate(R.layout.popuplayout, null);
+        PopupWindow popWnd = new PopupWindow(this);
+        popWnd.setContentView(contentView);
+        popWnd.setWidth(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setWidth(WindowManager.LayoutParams.MATCH_PARENT);
+        popWnd.setHeight(height);
+        popWnd.setWidth(width / 3);
+        popWnd.setAnimationStyle(R.style.right_popwin_anim_style);
+        popWnd.setOutsideTouchable(true);
+        popWnd.setBackgroundDrawable(new BitmapDrawable(getResources()));
+
+        TextView title = contentView.findViewById(R.id.title);
+        title.setText("缩放模式");
+
+        List<TrackEntity> trackEntityList = new ArrayList<>();
+        trackEntityList.add(new TrackEntity("填充模式", KSYMediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT, videoScalingMode == KSYMediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT));
+        trackEntityList.add(new TrackEntity("裁剪模式", KSYMediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING, videoScalingMode == KSYMediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING));
+        trackEntityList.add(new TrackEntity("全屏模式", KSYMediaPlayer.VIDEO_SCALING_MODE_NOSCALE_TO_FIT, videoScalingMode == KSYMediaPlayer.VIDEO_SCALING_MODE_NOSCALE_TO_FIT));
+
+        RecyclerView recyclerView = contentView.findViewById(R.id.list);
+        TrackListAdapter adapter = new TrackListAdapter(this, trackEntityList);
+        recyclerView.setAdapter(adapter);
+        adapter.setOnTrackSelectedListener(trackEntity -> {
+            videoScalingMode = trackEntity.getIndex();
+            mVideoView.setVideoScalingMode(trackEntity.getIndex());
+        });
+
+        popWnd.showAtLocation(mVideoView, Gravity.RIGHT, 0, 0);
+    }
+
+    private int speedIndex = 1;
+
+    private void showSpeedTrackWindow() {
+        View contentView = LayoutInflater.from(this).inflate(R.layout.popuplayout, null);
+        PopupWindow popWnd = new PopupWindow(this);
+        popWnd.setContentView(contentView);
+        popWnd.setWidth(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setWidth(WindowManager.LayoutParams.MATCH_PARENT);
+        popWnd.setHeight(height);
+        popWnd.setWidth(width / 3);
+        popWnd.setAnimationStyle(R.style.right_popwin_anim_style);
+        popWnd.setOutsideTouchable(true);
+        popWnd.setBackgroundDrawable(new BitmapDrawable(getResources()));
+
+        TextView title = contentView.findViewById(R.id.title);
+        title.setText("倍速播放");
+
+        List<TrackEntity> trackEntityList = new ArrayList<>();
+        trackEntityList.add(new TrackEntity("0.8x", 0, speedIndex == 0));
+        trackEntityList.add(new TrackEntity("1.0x", 1, speedIndex == 1));
+        trackEntityList.add(new TrackEntity("1.25x", 2, speedIndex == 2));
+        trackEntityList.add(new TrackEntity("1.5x", 3, speedIndex == 3));
+        trackEntityList.add(new TrackEntity("2.0x", 4, speedIndex == 4));
+        RecyclerView recyclerView = contentView.findViewById(R.id.list);
+        TrackListAdapter adapter = new TrackListAdapter(this, trackEntityList);
+        recyclerView.setAdapter(adapter);
+        adapter.setOnTrackSelectedListener(trackEntity -> {
+            speedIndex = trackEntity.getIndex();
+            switch (trackEntity.getIndex()) {
+                case 0:
+                    mVideoView.setSpeed(0.8f);
+                    break;
+                case 1:
+                    mVideoView.setSpeed(1.0f);
+                    break;
+                case 2:
+                    mVideoView.setSpeed(1.25f);
+                    break;
+                case 3:
+                    mVideoView.setSpeed(1.5f);
+                    break;
+                case 4:
+                    mVideoView.setSpeed(2.0f);
+                    break;
+            }
+
+        });
+
+        popWnd.showAtLocation(mVideoView, Gravity.RIGHT, 0, 0);
+    }
+
+
 }

@@ -43,6 +43,7 @@ public class KsyunPlayer {
         return this;
     }
 
+
     public void start() {
         Intent intent = new Intent(activity, KsyunVodActivity.class);
         intent.putExtra("title", title);
