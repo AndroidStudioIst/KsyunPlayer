@@ -30,4 +30,16 @@ public class KsyunUtils {
         return bitmap;
     }
 
+
+    public static String toMinute(long second) {
+        return second % 86400 % 3600 / 60 + "分" + second % 60 + "秒";
+    }
+
+    public static String generateTime(long time) {
+        int totalSeconds = (int) (time / 1000);
+        int seconds = totalSeconds % 60;
+        int minutes = (totalSeconds / 60) % 60;
+        int hours = totalSeconds / 3600;
+        return hours > 0 ? String.format("%02d小时%02d分钟%02d秒", hours, minutes, seconds) : String.format("%02d分钟%02d秒", minutes, seconds);
+    }
 }

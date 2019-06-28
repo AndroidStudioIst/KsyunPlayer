@@ -78,9 +78,7 @@ public class KsyunVodActivity extends Activity {
     private ImageView v_scaling;
     private boolean mIsTouchingSeekbar = false;
 
-
     private int videoScalingMode = KSYMediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT;
-
 
     private int maxDuration;
     private int nowPosition;
@@ -100,12 +98,12 @@ public class KsyunVodActivity extends Activity {
     private int width;
     private int height;
 
-
     private String url;
     private String title;
     private boolean isLive = false;
 
-    private List<TrackEntity> videoList = new ArrayList<>();
+    private int playableRangeStart = -1;
+    private int playableRangeEnd = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -120,6 +118,11 @@ public class KsyunVodActivity extends Activity {
         title = getIntent().getStringExtra("title");
         videoScalingMode = getIntent().getIntExtra("scale", 1);
         isLive = getIntent().getBooleanExtra("live", false);
+        playableRangeStart = getIntent().getIntExtra("playableStart", -1);
+        playableRangeEnd = getIntent().getIntExtra("playableEnd", -1);
+        if (playableRangeStart != -1 && playableRangeEnd != -1) {
+            mVideoView.setPlayableRanges(playableRangeStart, playableRangeEnd);
+        }
         openVideo(title, url);
     }
 
@@ -200,6 +203,10 @@ public class KsyunVodActivity extends Activity {
             }
             v_play.setImageResource(R.drawable.v_play_pause);
             startUIUpdateThread();
+            if (playableRangeStart != -1 && playableRangeEnd != -1) {
+                Log.e("info", "Math.abs: " + Math.abs(playableRangeEnd - playableRangeStart));
+                Toast.makeText(this, "您可以试看: " + KsyunUtils.generateTime(Math.abs(playableRangeEnd - playableRangeStart)), Toast.LENGTH_SHORT).show();
+            }
         });
 
         mVideoView.setOnErrorListener((iMediaPlayer, what, extra) -> {
@@ -436,7 +443,6 @@ public class KsyunVodActivity extends Activity {
         );
 
 
-
         mainUIHandler = new MyHandler(this);
     }
 
@@ -573,7 +579,7 @@ public class KsyunVodActivity extends Activity {
                         currentPlayTime = mVideoView.getCurrentPosition();
                         durationTime = mVideoView.getDuration();
                     }
-                    Message msg = mainUIHandler.obtainMessage(1, (int) currentPlayTime / 1000, (int) durationTime / 1000);
+                    Message msg = mainUIHandler.obtainMessage(1, (int) (currentPlayTime / 1000), (int) (durationTime / 1000));
                     mainUIHandler.sendMessage(msg);
                 }
 
@@ -599,10 +605,12 @@ public class KsyunVodActivity extends Activity {
             if (msg.what == 1) {
                 activity.tv_duration.setText(formatTimeText(msg.arg2));
                 activity.tv_position.setText(formatTimeText(msg.arg1));
-                /* setTimeTextView(mTextViewDurationTime, durationTimeMs); */
                 if (msg.arg1 > 0 && msg.arg2 >= 0) {
                     activity.seekBar.setMax(msg.arg2);
                     activity.seekBar.setProgress(msg.arg1);
+                    if (activity.playableRangeStart != -1 && activity.playableRangeEnd != -1) {
+                        activity.seekBar.setSecondaryProgress(Math.abs(activity.playableRangeEnd - activity.playableRangeStart) / 1000);
+                    }
                 } else {
                     activity.seekBar.setProgress(0);
                 }

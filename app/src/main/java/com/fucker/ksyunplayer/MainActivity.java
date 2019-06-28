@@ -20,9 +20,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         findViewById(R.id.test).setOnClickListener(v -> new KsyunPlayer(MainActivity.this)
                 .setTitle("丛林大反攻")
-                .setUrl("http://192.168.0.106/cldfg.mp4")
+                .setUrl("http://192.168.0.106/ydcs.mkv")
                 .setRequestCode(2019)
                 .setVideoScalingMode(KsyunPlayer.FIT_CENTER)
+                .setPlayableRangeStart(0)
+                .setPlayableRangeEnd(300000)
+                .setLive(true)
                 .start());
         //KsyunUtils.loadVideoThumbAsync("/storage/emulated/0/Android/data/com.hammer.tools/files/download/0091BF3331E5E53F3D5E51BB243B74A5/千与千寻.BD1280高清中字版.mp4", 200, (ImageView) findViewById(R.id.thumb));
     }
