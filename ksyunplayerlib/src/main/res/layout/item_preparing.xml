@@ -18,8 +18,7 @@
             android:layout_height="@dimen/dp_30"
             android:layout_gravity="center"
             android:layout_marginTop="@dimen/dp_5"
-            android:indeterminateDrawable="@drawable/v_load_drawable"
-            android:indeterminateDuration="800" />
+            android:indeterminateTint="#EC407A" />
 
         <TextView
             android:id="@+id/loading_text"

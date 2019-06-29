@@ -8,18 +8,10 @@ import com.ksyun.media.player.misc.KSYProbeMediaInfo;
 public class KsyunUtils {
 
     public static void loadVideoThumbAsync(final String localUrl, final long time, final int bitmapWidth, final ImageView imageView) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                KSYProbeMediaInfo mediaInfo = new KSYProbeMediaInfo();
-                final Bitmap bitmap = mediaInfo.getVideoThumbnailAtTime(localUrl, time, bitmapWidth, 0);
-                imageView.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        imageView.setImageBitmap(bitmap);
-                    }
-                });
-            }
+        new Thread(() -> {
+            KSYProbeMediaInfo mediaInfo = new KSYProbeMediaInfo();
+            final Bitmap bitmap = mediaInfo.getVideoThumbnailAtTime(localUrl, time, bitmapWidth, 0);
+            imageView.post(() -> imageView.setImageBitmap(bitmap));
         }).start();
     }
 

@@ -16,6 +16,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
@@ -51,7 +52,7 @@ import java.util.List;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 
-public class KsyunVodActivity extends Activity {
+public class KsyunVodActivity extends AppCompatActivity {
     private KSYTextureView mVideoView = null;
     private View mLoadView = null;
     private ImageView v_thumb;
