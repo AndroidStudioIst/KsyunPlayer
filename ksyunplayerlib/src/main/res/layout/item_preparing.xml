@@ -14,11 +14,11 @@
 
         <ProgressBar
             android:id="@+id/loading"
-            android:layout_width="@dimen/dp_30"
-            android:layout_height="@dimen/dp_30"
+            android:layout_width="@dimen/dp_27"
+            android:layout_height="@dimen/dp_10"
             android:layout_gravity="center"
             android:layout_marginTop="@dimen/dp_5"
-            android:indeterminateTint="#EC407A" />
+            android:indeterminateDrawable="@drawable/loading_group_drawable" />
 
         <TextView
             android:id="@+id/loading_text"
