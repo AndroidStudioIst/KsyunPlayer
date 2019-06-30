@@ -84,8 +84,8 @@
             android:src="@drawable/ic_panorama_horizontal_black_24dp"
             android:tint="@android:color/white"
             android:visibility="visible" />
+
         <TextClock
-            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:format12Hour="hh:mm:ss"
@@ -96,14 +96,17 @@
             android:shadowDy="0.5"
             android:shadowRadius="2"
             android:text="08:09:16"
+            android:paddingLeft="@dimen/dp_10"
+            android:paddingRight="@dimen/dp_10"
             android:textColor="@android:color/white"
             android:textSize="@dimen/sp_14"
-            android:textStyle="normal" />
+            android:textStyle="normal"
+            android:visibility="visible" />
 
         <FrameLayout
             android:layout_width="@dimen/dp_50"
             android:layout_height="@dimen/dp_50"
-            android:visibility="visible">
+            android:visibility="gone">
 
             <LinearLayout
                 android:layout_width="@dimen/dp_24"
@@ -164,16 +167,6 @@
             android:src="@drawable/v_play_arrow"
             android:tint="@android:color/white" />
 
-        <android.widget.ImageView
-            android:id="@+id/v_skip_next"
-            android:layout_width="@dimen/dp_50"
-            android:layout_height="@dimen/dp_50"
-            android:clickable="true"
-            android:focusable="true"
-            android:scaleType="centerInside"
-            android:src="@drawable/v_play_skip_next"
-            android:tint="@android:color/white" />
-
         <TextView
             android:id="@+id/tv_position"
             android:layout_width="wrap_content"
@@ -183,7 +176,7 @@
             android:paddingRight="@dimen/dp_10"
             android:text="00:00"
             android:textColor="@android:color/white"
-            android:textSize="14sp" />
+            android:textSize="@dimen/sp_14" />
 
         <SeekBar
             android:id="@+id/seekbar"

@@ -19,8 +19,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         findViewById(R.id.test).setOnClickListener(v -> new KsyunPlayer(MainActivity.this)
-                .setTitle("丛林大反攻")
-                .setUrl("http://192.168.0.106/cldfg.mp4")
+                .setTitle("蜘蛛侠：英雄远征")
+                .setUrl("http://xunlei.xiazai-zuida.com/1906/ZZX：英雄远征.HDTC中字版.mp4")
                 .setRequestCode(2019)
                 .setVideoScalingMode(KsyunPlayer.FIT_CENTER)
                 /*.setPlayableRangeStart(0)
