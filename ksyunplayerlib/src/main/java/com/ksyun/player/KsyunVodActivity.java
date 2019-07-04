@@ -875,6 +875,7 @@ public class KsyunVodActivity extends AppCompatActivity {
         v_scaling.setVisibility(visiable ? VISIBLE : GONE);
         v_track.setVisibility(visiable ? VISIBLE : GONE);
         v_speed.setVisibility(visiable ? VISIBLE : GONE);
+        v_timeText.setVisibility(visiable ? VISIBLE : GONE);
     }
 
     private void showTrackListWindow() {
@@ -1016,7 +1017,7 @@ public class KsyunVodActivity extends AppCompatActivity {
         popWnd.setBackgroundDrawable(new BitmapDrawable(getResources()));
 
         TextView title = contentView.findViewById(R.id.title);
-        title.setText("音轨选择");
+        title.setText("字幕选择");
         int index = mVideoView.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT);// 获取当前正在播放的音频轨道索引
         List<TrackEntity> trackEntityList = new ArrayList<>();
         int i = 0;
