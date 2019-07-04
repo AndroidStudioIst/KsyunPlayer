@@ -1032,6 +1032,7 @@ public class KsyunVodActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
         adapter.setOnTrackSelectedListener(trackEntity -> {
             if (trackEntity.getIndex() != mVideoView.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT)) {
+                mVideoView.deselectTrack(mVideoView.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT));
                 mVideoView.selectTrack(trackEntity.getIndex());
                 Toast.makeText(KsyunVodActivity.this, "切换新的字幕", Toast.LENGTH_SHORT).show();
             }
