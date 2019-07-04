@@ -84,7 +84,16 @@
             android:src="@drawable/ic_panorama_horizontal_black_24dp"
             android:tint="@android:color/white"
             android:visibility="visible" />
-
+        <android.widget.ImageView
+            android:id="@+id/v_timeText"
+            android:layout_width="@dimen/dp_50"
+            android:layout_height="@dimen/dp_50"
+            android:clickable="true"
+            android:focusable="true"
+            android:scaleType="centerInside"
+            android:src="@drawable/v_subtitles_black_24dp"
+            android:tint="@android:color/white"
+            android:visibility="visible" />
         <TextClock
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
@@ -148,6 +157,18 @@
         android:layout_gravity="center"
         android:visibility="gone"
         tools:visibility="visible" />
+    <TextView
+        android:textSize="@dimen/sp_17"
+        android:textColor="@android:color/white"
+        android:id="@+id/timeText"
+        android:layout_gravity="bottom|center"
+        android:padding="@dimen/dp_10"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:shadowColor="#000"
+        android:shadowDx="0.5"
+        android:shadowDy="0.5"
+        android:shadowRadius="2"/>
 
     <LinearLayout
         android:id="@+id/ctrl_bar"
@@ -155,7 +176,8 @@
         android:layout_height="@dimen/dp_50"
         android:layout_gravity="bottom"
         android:background="@drawable/v_palybar_bottom"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        tools:visibility="visible">
 
         <android.widget.ImageView
             android:id="@+id/v_play"

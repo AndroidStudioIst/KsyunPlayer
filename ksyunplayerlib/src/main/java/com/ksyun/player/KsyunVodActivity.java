@@ -77,6 +77,9 @@ public class KsyunVodActivity extends AppCompatActivity {
     private ImageView v_track;
     private ImageView v_speed;
     private ImageView v_scaling;
+    private ImageView v_timeText;
+
+    private TextView timeText;
     private boolean mIsTouchingSeekbar = false;
 
     private int videoScalingMode = KSYMediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT;
@@ -151,6 +154,8 @@ public class KsyunVodActivity extends AppCompatActivity {
         v_track = (ImageView) findViewById(R.id.v_track);
         v_scaling = (ImageView) findViewById(R.id.v_scaling);
         v_speed = (ImageView) findViewById(R.id.v_speed);
+        v_timeText=(ImageView) findViewById(R.id.v_timeText);
+        timeText = findViewById(R.id.timeText);
         DisplayMetrics displayMetrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
         this.width = displayMetrics.widthPixels;
@@ -256,7 +261,10 @@ public class KsyunVodActivity extends AppCompatActivity {
         mVideoView.setOnMessageListener((iMediaPlayer, bundle) ->
                 Log.e("info", "name:" + bundle.toString())
         );
-
+        mVideoView.setOnTimedTextListener((iMediaPlayer, s) -> {
+            Log.e("info", "onTimedText: " + s);
+            timeText.setText(s);
+        });
         mVideoView.setOnCompletionListener(iMediaPlayer -> {
             finishPlay();
             finish();
@@ -443,7 +451,7 @@ public class KsyunVodActivity extends AppCompatActivity {
                 showSpeedTrackWindow()
         );
 
-
+        v_timeText.setOnClickListener(view -> showTimeTextListWindow());
         mainUIHandler = new MyHandler(this);
     }
 
@@ -992,5 +1000,42 @@ public class KsyunVodActivity extends AppCompatActivity {
         popWnd.showAtLocation(mVideoView, Gravity.RIGHT, 0, 0);
     }
 
+    private void showTimeTextListWindow() {
+        View contentView = LayoutInflater.from(this).inflate(R.layout.popuplayout, null);
+        PopupWindow popWnd = new PopupWindow(this);
+        popWnd.setContentView(contentView);
+        popWnd.setWidth(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
+        popWnd.setWidth(WindowManager.LayoutParams.MATCH_PARENT);
+        int height = getWindowManager().getDefaultDisplay().getHeight();
+        int width = getWindowManager().getDefaultDisplay().getWidth();
+        popWnd.setHeight(height);
+        popWnd.setWidth(width / 3);
+        popWnd.setAnimationStyle(R.style.right_popwin_anim_style);
+        popWnd.setOutsideTouchable(true);
+        popWnd.setBackgroundDrawable(new BitmapDrawable(getResources()));
 
+        TextView title = contentView.findViewById(R.id.title);
+        title.setText("音轨选择");
+        int index = mVideoView.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT);// 获取当前正在播放的音频轨道索引
+        List<TrackEntity> trackEntityList = new ArrayList<>();
+        int i = 0;
+        for (KSYTrackInfo trackInfo : mVideoView.getTrackInfo()) {
+            if (trackInfo.getTrackType() == ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT) {
+                i = i + 1;
+                trackEntityList.add(new TrackEntity(trackInfo.getLanguage().replace("und", "字幕" + i), trackInfo.getTrackIndex(), index == trackInfo.getTrackIndex()));
+            }
+        }
+        RecyclerView recyclerView = contentView.findViewById(R.id.list);
+        TrackListAdapter adapter = new TrackListAdapter(this, trackEntityList);
+        recyclerView.setAdapter(adapter);
+        adapter.setOnTrackSelectedListener(trackEntity -> {
+            if (trackEntity.getIndex() != mVideoView.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT)) {
+                mVideoView.selectTrack(trackEntity.getIndex());
+                Toast.makeText(KsyunVodActivity.this, "切换新的字幕", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        popWnd.showAtLocation(mVideoView, Gravity.RIGHT, 0, 0);
+    }
 }
